@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-from model import MobileFaceNet
+from model import STgramMFN, ArcMarginProduct
 
 
 BATCH_NORM_EPSILON = 1e-5
@@ -74,49 +74,50 @@ class SimCLRv2(nn.Module):
     """SimCLRv2 Implementation
         Using ResNet architecture from Pytorch converter which includes projection head.
     """
-    def __init__(self, num_class=41, c_dim=128, pretrained_weights: str = None):
+    def __init__(self, num_class=41, c_dim=128, pretrained_weights: str = None, use_arcface=False):
         super(SimCLRv2, self).__init__()
-        self.encoder = MobileFaceNet(num_class, c_dim=c_dim)
+        self.use_arcface = use_arcface
+        self.encoder = STgramMFN(num_class, c_dim=c_dim, use_arcface=use_arcface)
         self.projector = ContrastiveHead(channels_in=c_dim)
+        self.classifier = nn.Linear(c_dim, num_class)
 
         if pretrained_weights:
             self.encoder.load_state_dict(torch.load(pretrained_weights, map_location='cpu')['encoder'])
             self.projector.load_state_dict(torch.load(pretrained_weights, map_location='cpu')['projector'])
 
-    def forward(self, x_wav, x_mel):
-        # x_wav [B, N, 1, L] x_mel [B, N, 1, M, F]
-        b, n = x_wav.size(0), x_wav.size(1)
-        # reshape
-        x_wav = x_wav.reshape(b*n, x_wav.size(2), x_wav.size(3))
-        x_mel = x_mel.reshape(b*n, x_mel.size(2), x_mel.size(3), x_mel.size(4))
+    def forward(self, x_wav, x_mel, label=None):
+        # # x_wav [B, N, 1, L] x_mel [B, N, 1, M, F]
+        # b, n = x_wav.size(0), x_wav.size(1)
+        # # reshape
+        # x_wav = x_wav.reshape(b*n, x_wav.size(2), x_wav.size(3))
+        # x_mel = x_mel.reshape(b*n, x_mel.size(2), x_mel.size(3), x_mel.size(4))
 
         # h
-        _, h = self.encoder(x_wav, x_mel)
+        out, h = self.encoder(x_wav, x_mel, label)
+        logits = out if self.use_arcface else self.classifier(h)
         # z
         z = self.projector(h)
-
-        return h, z
+        return logits, z
 
 
 class SimCLRv2_ft(nn.Module):
     """Take a pretrained SimCLRv2 Model and Finetune with linear layer"""
-    def __init__(self, simclrv2_model, n_classes, arcface=False):
+    def __init__(self, simclrv2_model, n_classes=41, c_dim=128, pretrain=True, use_arcface=False, m=0.5, s=30, sub=1):
         super(SimCLRv2_ft, self).__init__()
         self.encoder = simclrv2_model.encoder
         # From v2 paper, we just need the first layer from projector
-        self.projector = torch.nn.Sequential(*(list(simclrv2_model.projector.children())[0][:2]))
+        self.projector = torch.nn.Sequential(*(list(simclrv2_model.projector.children())[0][:2])) if pretrain else nn.Identity()
+        # contrain used
+        self.contrain_projector = ContrastiveHead(channels_in=c_dim)
         # Hack
         linear_in_features = self.projector[0].out_features
         self.linear = nn.Linear(linear_in_features, n_classes)
-        self.arcface = arcface
+        self.arcface = ArcMarginProduct(in_features=linear_in_features, out_features=n_classes,
+                                        m=m, s=s, sub=sub) if use_arcface else use_arcface
 
-    def forward(self, x_wav, x_mel):
-        _, h = self.encoder(x_wav, x_mel)
+    def forward(self, x_wav, x_mel, label=None):
+        out, h = self.encoder(x_wav, x_mel)
+        z = self.contrain_projector(h)
         h_prime = self.projector(h)
-
-        if self.arcface:
-            return h_prime, h_prime
-
-        y_hat = self.linear(h_prime)
-
-        return y_hat, h_prime
+        y_hat = self.arcface(h_prime, label) if self.arcface else self.linear(h_prime)
+        return y_hat, h_prime, z

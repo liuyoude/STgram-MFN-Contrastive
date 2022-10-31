@@ -29,12 +29,12 @@ class STgram_Contrastive_Dataset(Dataset):
 
             file_path = self.file_path_list_dict[key][item]
             machine = file_path.split('/')[-3]
-            # id_str = re.findall('id_[0-9][0-9]', file_path)
-            # if machine == 'ToyCar' or machine == 'ToyConveyor':
-            #     id = int(id_str[0][-1]) - 1
-            # else:
-            #     id = int(id_str[0][-1])
-            label = self.factor[machine]
+            id_str = re.findall('id_[0-9][0-9]', file_path)
+            if machine == 'ToyCar' or machine == 'ToyConveyor':
+                id = int(id_str[0][-1]) - 1
+            else:
+                id = int(id_str[0][-1])
+            label = int(self.factor[machine] * 7 + id)
             (x, _) = librosa.core.load(file_path, sr=self.sr, mono=True)
 
             x = x[:self.sr*10]  # (1, audio_length)
@@ -100,7 +100,7 @@ class Wav_Mel_ID_Dataset(Dataset):
 
 
 class WavMelClassifierDataset:
-    def __init__(self, root_folder, sr, ID_factor, pattern="con"):
+    def __init__(self, root_folder, sr, ID_factor, pattern="random"):
         self.root_folder = root_folder
         self.sr = sr
         self.factor = ID_factor
@@ -112,7 +112,7 @@ class WavMelClassifierDataset:
                     win_length=1024,
                     hop_length=512,
                     power=2.0):
-        if self.pattern == 'con':
+        if self.pattern == 'uniform':
             dataset = STgram_Contrastive_Dataset(self.root_folder,
                                                  self.factor,
                                                  self.sr,
@@ -126,7 +126,8 @@ class WavMelClassifierDataset:
                                                      hop_length=hop_length,
                                                      power=power,
                                                  ))
-        else:
+            return dataset
+        elif self.pattern == 'random':
             dataset = Wav_Mel_ID_Dataset(self.root_folder,
                                          self.factor,
                                          self.sr,
@@ -140,7 +141,9 @@ class WavMelClassifierDataset:
                                              hop_length=hop_length,
                                              power=power,
                                          ))
-        return dataset
+            return dataset
+        else:
+            assert "pattern only can be set as pretrain or finetune"
 
 
 

@@ -90,7 +90,7 @@ def data_split(process_machines,
                 id = int(id_str[-1]) - 1
             else:
                 id = int(id_str[-1])
-
+            # get all machine ID files list, (ID_factor[machine_type]*7 + id) is the label (from 0 to 40)
             path_list_dict[ID_factor[machine_type]*7 + id] = files
 
             print(f'{data_type} {machine_type} {id_str} were split to {len(files)} wav files!')
