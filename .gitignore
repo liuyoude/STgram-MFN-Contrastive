@@ -1,3 +1,5 @@
+.idea
+__pycache__
 dcase2020_task2_evaluator
 model_params
 log
