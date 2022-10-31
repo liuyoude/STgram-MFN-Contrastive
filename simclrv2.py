@@ -110,7 +110,7 @@ class SimCLRv2_ft(nn.Module):
         # contrain used
         self.contrain_projector = ContrastiveHead(channels_in=c_dim)
         # Hack
-        linear_in_features = self.projector[0].out_features
+        linear_in_features = self.projector[0].out_features if pretrain else c_dim
         self.linear = nn.Linear(linear_in_features, n_classes)
         self.arcface = ArcMarginProduct(in_features=linear_in_features, out_features=n_classes,
                                         m=m, s=s, sub=sub) if use_arcface else use_arcface

@@ -59,7 +59,7 @@ class NT_Xent(nn.Module):
             phi = cosine * self.cos_m - sine * self.sin_m
             phi = torch.where((cosine - self.th) > 0, phi, cosine - self.mm)
             positive_samples = phi
-        negative_samples = sim[self.mask].reshape(N, N-self.batch_size)
+        negative_samples = sim[self.neg_mask].reshape(N, N-self.batch_size)
         # BCE loss
         labels = torch.zeros(N, N-1).to(positive_samples.device).long()
         labels[:, :self.batch_size-1] = 1
@@ -104,25 +104,22 @@ class SupconLoss(nn.Module):
         sim = self.similarity_f(z.unsqueeze(1), z.unsqueeze(0))
         #
         mask = torch.eq(labels, labels.T).to(sim.device)
-        logits_mask = torch.ones_like(mask).fill_diagonal_(0).to(mask.device)
-        logits_mask = mask.float() * logits_mask
-        positive_mask = torch.ones_like(mask).to(sim.device)
-        positive_mask = (~logits_mask.bool()).float() * positive_mask
-        # try to add margin for positive samples
+        pos_mask = mask.fill_diagonal_(0)
+        neg_mask = ~ pos_mask
         if self.m:
             cosine = sim
             sine = torch.sqrt(1.0 - torch.pow(cosine, 2) + self.eps)
             phi = cosine * self.cos_m - sine * self.sin_m
             phi = torch.where((cosine - self.th) > 0, phi, cosine - self.mm)
             margin_sim = phi
-            sim = logits_mask * margin_sim + positive_mask * sim
+            sim = pos_mask.float() * margin_sim + neg_mask.float() * sim
         # CCE loss
         anchor_dot_contrast = sim
         logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
         logits = anchor_dot_contrast - logits_max.detach()
         # delete no couple positive samples (only one class in batch)
-        constrast_index = ~(logits_mask.sum(1, keepdim=True).long().repeat(1, mask.size(1)) == 0)
-        logits_mask = logits_mask[constrast_index].reshape(-1, mask.size(1))
+        constrast_index = ~(pos_mask.sum(1, keepdim=True).long().repeat(1, mask.size(1)) == 0)
+        logits_mask = pos_mask[constrast_index].reshape(-1, mask.size(1))
         # positive_mask = positive_mask.fill_diagonal_(0)[constrast_index].reshape(-1, mask.size(1))
         logits = logits[constrast_index].reshape(-1, mask.size(1)) / self.temperature
         # print(logits.shape)

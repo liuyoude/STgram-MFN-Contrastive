@@ -6,14 +6,13 @@ import yaml
 import os
 
 from data_func.dataset import *
-from data_func.wave_split import data_split
 from model import *
 from trainer import *
 
 from model import MobileFaceNet
 from simclrv2 import SimCLRv2, SimCLRv2_ft
 
-config_path = './config_pretrain_ntxent.yaml'
+config_path = './config.yaml'
 with open(config_path) as f:
     params = yaml.safe_load(f)
 
@@ -26,19 +25,11 @@ for key, value in params.items():
     parser.add_argument(f'--{key}', default=value, type=type(value))
 
 
-def preprocess(args):
-    root_folder = os.path.join(args.pre_data_dir, args.con_file)
-    if not os.path.exists(root_folder):
-        data_split(process_machines=args.process_machines,
-                   data_dir=args.data_dir,
-                   root_folder=root_folder,
-                   ID_factor=args.ID_factor)
-
-
 def pretrain(args):
     simclr_net = SimCLRv2(num_class=args.num_classes)
     gpu_id = args.device_ids[0]
     if torch.cuda.is_available():
+        args.gpu_index = gpu_id
         args.device = torch.device(f'cuda:{gpu_id}')
         cudnn.deterministic = True
         cudnn.benchmark = True
@@ -46,9 +37,8 @@ def pretrain(args):
         args.device = torch.device('cpu')
         args.gpu_index = -1
 
-    root_folder = os.path.join(args.pre_data_dir, args.con_file)
-    con_dataset = WavMelClassifierDataset(root_folder, args.sr, args.ID_factor,
-                                          pattern='uniform' if args.pretrain_loss == 'nexent' else 'random')
+    con_dataset = WavMelClassifierDataset(args.train_dirs, args.sr, args.ID_factor,
+                                          pattern='uniform' if args.pretrain_loss == 'ntxent' else 'random')
     train_clf_dataset = con_dataset.get_dataset(n_mels=args.n_mels,
                                                 n_fft=args.n_fft,
                                                 hop_length=args.hop_length,
@@ -57,7 +47,7 @@ def pretrain(args):
     train_clf_loader = torch.utils.data.DataLoader(
         train_clf_dataset, batch_size=args.con_batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True, drop_last=True)
-    optimizer = torch.optim.Adam(simclr_net.parameters(), lr=args.con_lr)
+    optimizer = torch.optim.Adam(simclr_net.parameters(), lr=float(args.con_lr))
     with torch.cuda.device(args.gpu_index):
         simclr_net = torch.nn.DataParallel(simclr_net, device_ids=args.device_ids)
         trainer = CLRTrainer(data_dir=args.data_dir,
@@ -73,9 +63,11 @@ def finetune(args, epoch=100):
     pretrain_model_path = os.path.join(args.model_dir, args.version, 'pretrain', f'checkpoint_{epoch:04d}.pth.tar') \
         if args.pretrain else None
     net = SimCLRv2(pretrained_weights=pretrain_model_path)
-    ft_net = SimCLRv2_ft(net, args.num_classes, args.use_arcface, m=args.m, s=args.s, sub=args.sub_center)
+    ft_net = SimCLRv2_ft(net, args.num_classes, use_arcface=args.use_arcface,
+                         pretrain=args.pretrain, m=args.m, s=args.s, sub=args.sub_center)
     gpu_id = args.ft_ids[0]
     if torch.cuda.is_available():
+        args.gpu_index = gpu_id
         args.device = torch.device(f'cuda:{gpu_id}')
         cudnn.deterministic = True
         cudnn.benchmark = True
@@ -83,8 +75,7 @@ def finetune(args, epoch=100):
         args.device = torch.device('cpu')
         args.gpu_index = -1
 
-    root_folder = os.path.join(args.pre_data_dir, f'313frames_train_path_list.db')
-    clf_dataset = WavMelClassifierDataset(root_folder, args.sr, args.ID_factor, pattern='random')
+    clf_dataset = WavMelClassifierDataset(args.train_dirs, args.sr, args.ID_factor, pattern='random')
     train_clf_dataset = clf_dataset.get_dataset(n_mels=args.n_mels,
                                                 n_fft=args.n_fft,
                                                 hop_length=args.hop_length,
@@ -93,7 +84,7 @@ def finetune(args, epoch=100):
     train_clf_loader = torch.utils.data.DataLoader(
         train_clf_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True, drop_last=True)
-    optimizer = torch.optim.Adam(ft_net.parameters(), lr=args.lr)
+    optimizer = torch.optim.Adam(ft_net.parameters(), lr=float(args.lr))
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_clf_loader), eta_min=0,
                                                            last_epoch=-1)
     with torch.cuda.device(args.gpu_index):
@@ -113,7 +104,8 @@ def finetune(args, epoch=100):
 
 def test(args):
     net = SimCLRv2(num_class=args.num_classes)
-    ft_net = SimCLRv2_ft(net, args.num_classes, args.use_arcface, m=args.m, s=args.s, sub=args.sub_center)
+    ft_net = SimCLRv2_ft(net, args.num_classes, use_arcface=args.use_arcface,
+                         pretrain=args.pretrain, m=args.m, s=args.s, sub=args.sub_center)
     gpu_id = args.ft_ids[0]
     if torch.cuda.is_available():
         args.device = torch.device(f'cuda:{gpu_id}')
@@ -151,13 +143,13 @@ def main():
     # utils.replay_visdom(log_path='./log/')
     args = parser.parse_args()
     if args.seed: utils.setup_seed(args.seed)
+    margin = args.ntxent_margin if args.pretrain_loss == 'ntxent' else args.supcon_margin
     version = "STgram-MFN"
-    version += f'-Contrastive-pretrain-{args.pretrain_loss}(pos_margin={args.pos_margin},t={args.t},b={args.con_batch_size})' \
+    version += f'-Contrastive-pretrain-{args.pretrain_loss}(margin={margin},t={args.t},b={args.con_batch_size})-finetune' \
                if args.pretrain else ''
-    version += '-finetune-contrain(SupConLoss)-' if args.contrain else '-finetune-'
-    version += f'ArcFace(m={args.m},s={args.s},sub={args.sub_center})' if args.use_arcface else ''
+    version += f'-contrain-SupConLoss(margin={args.supcon_margin})' if args.contrain else ''
+    version += f'-ArcFace(m={args.m},s={args.s},sub={args.sub_center})' if args.use_arcface else 'CELoss'
     args.version = version
-    preprocess(args)
     print(args.version)
     if args.pretrain: pretrain(args)
     finetune(args, epoch=100)

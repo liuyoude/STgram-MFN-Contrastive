@@ -2,6 +2,7 @@ from torchvision.transforms import transforms
 import torch
 from torch.utils.data import Dataset, DataLoader
 from data_func.view_generator import ViewGenerator
+import utils
 # import WavAugment.augment as augment
 import numpy as np
 import joblib
@@ -11,12 +12,26 @@ import re
 import os
 
 class STgram_Contrastive_Dataset(Dataset):
-    def __init__(self, root_floder, ID_factor, sr,
+    def __init__(self, dirs, ID_factor, sr,
                  win_length, hop_length, transform=None):
-        with open(root_floder, 'rb') as f:
-            self.file_path_list_dict = joblib.load(f)
-        self.transform = transform
         self.factor = ID_factor
+        filename_list_dict = {}
+        for dir in dirs:
+            filename_list = utils.get_filename_list(dir)
+            for filename in filename_list:
+                machine = filename.split('/')[-3]
+                id_str = re.findall('id_[0-9][0-9]', filename)
+                if machine == 'ToyCar' or machine == 'ToyConveyor':
+                    id = int(id_str[0][-1]) - 1
+                else:
+                    id = int(id_str[0][-1])
+                label = int(self.factor[machine] * 7 + id)
+                if label in filename_list_dict.keys():
+                    filename_list_dict[label].append(filename)
+                else:
+                    filename_list_dict[label] = [filename]
+        self.filename_list_dict = filename_list_dict
+        self.transform = transform
         self.sr = sr
         self.win_len = win_length
         self.hop_len = hop_length
@@ -25,49 +40,37 @@ class STgram_Contrastive_Dataset(Dataset):
     def __getitem__(self, item):
         wav_list, mel_list, label_list = [], [], []
 
-        for index, key in enumerate(self.file_path_list_dict.keys()):
-
-            file_path = self.file_path_list_dict[key][item]
-            machine = file_path.split('/')[-3]
-            id_str = re.findall('id_[0-9][0-9]', file_path)
-            if machine == 'ToyCar' or machine == 'ToyConveyor':
-                id = int(id_str[0][-1]) - 1
-            else:
-                id = int(id_str[0][-1])
-            label = int(self.factor[machine] * 7 + id)
+        for index, label in enumerate(self.filename_list_dict.keys()):
+            file_path = self.filename_list_dict[label][item]
             (x, _) = librosa.core.load(file_path, sr=self.sr, mono=True)
-
             x = x[:self.sr*10]  # (1, audio_length)
             x_wav = torch.from_numpy(x)
             x_mel = self.transform(x_wav).unsqueeze(0)
-
             if index == 0:
                 wav_tensor = x_wav.unsqueeze(0)
-                mel_tensor = x_mel.unsqueeze(0)
+                mel_tensor = x_mel
             else:
                 wav_tensor = torch.cat((wav_tensor, x_wav.unsqueeze(0)), dim=0)
-                mel_tensor = torch.cat((mel_tensor, x_mel.unsqueeze(0)), dim=0)
+                mel_tensor = torch.cat((mel_tensor, x_mel), dim=0)
 
             label_list.append(label)
-
-
         return wav_tensor, mel_tensor, np.array(label_list)
 
     def __len__(self):
-        for index, key in enumerate(self.file_path_list_dict.keys()):
+        for index, label in enumerate(self.filename_list_dict.keys()):
             if index == 0:
-                min_len = len(self.file_path_list_dict[key])
+                min_len = len(self.filename_list_dict[label])
             else:
-                if len(self.file_path_list_dict[key]) < min_len:
-                    min_len = len(self.file_path_list_dict[key])
-
+                if len(self.filename_list_dict[label]) < min_len:
+                    min_len = len(self.filename_list_dict[label])
         return min_len
 
 class Wav_Mel_ID_Dataset(Dataset):
-    def __init__(self, root_floder, ID_factor, sr,
+    def __init__(self, dirs, ID_factor, sr,
                  win_length, hop_length, transform=None):
-        with open(root_floder, 'rb') as f:
-            self.file_path_list = joblib.load(f)
+        self.filename_list = []
+        for dir in dirs:
+            self.filename_list.extend(utils.get_filename_list(dir))
         self.transform = transform
         self.factor = ID_factor
         self.sr = sr
@@ -76,7 +79,7 @@ class Wav_Mel_ID_Dataset(Dataset):
         # print(len(self.file_path_list))
 
     def __getitem__(self, item):
-        file_path = self.file_path_list[item]
+        file_path = self.filename_list[item]
         machine = file_path.split('/')[-3]
         id_str = re.findall('id_[0-9][0-9]', file_path)
         if machine == 'ToyCar' or machine == 'ToyConveyor':
@@ -88,20 +91,17 @@ class Wav_Mel_ID_Dataset(Dataset):
 
         x = x[:self.sr*10]  # (1, audio_length)
         x_wav = torch.from_numpy(x)
-        x_mel = self.transform(x_wav).unsqueeze(0)
-            # print(x.shape)
-
-
+        x_mel = self.transform(x_wav)
         return x_wav, x_mel, label
 
     def __len__(self):
-        return len(self.file_path_list)
+        return len(self.filename_list)
 
 
 
 class WavMelClassifierDataset:
-    def __init__(self, root_folder, sr, ID_factor, pattern="random"):
-        self.root_folder = root_folder
+    def __init__(self, dirs, sr, ID_factor, pattern="random"):
+        self.dirs = dirs
         self.sr = sr
         self.factor = ID_factor
         self.pattern = pattern
@@ -113,7 +113,7 @@ class WavMelClassifierDataset:
                     hop_length=512,
                     power=2.0):
         if self.pattern == 'uniform':
-            dataset = STgram_Contrastive_Dataset(self.root_folder,
+            dataset = STgram_Contrastive_Dataset(self.dirs,
                                                  self.factor,
                                                  self.sr,
                                                  win_length,
@@ -128,7 +128,7 @@ class WavMelClassifierDataset:
                                                  ))
             return dataset
         elif self.pattern == 'random':
-            dataset = Wav_Mel_ID_Dataset(self.root_folder,
+            dataset = Wav_Mel_ID_Dataset(self.dirs,
                                          self.factor,
                                          self.sr,
                                          win_length,

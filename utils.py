@@ -99,15 +99,29 @@ def create_wav_list(target_dir,
 
 
 # get test machine id list
-def get_machine_id_list(target_dir,
-                        dir_name='test',
-                        ext='wav'):
-    dir_path = os.path.abspath(f'{target_dir}/{dir_name}/*.{ext}')
+def get_machine_id_list(target_dir, ext='wav'):
+    dir_path = os.path.abspath(f'{target_dir}/*.{ext}')
     files_path = sorted(glob.glob(dir_path))
     machine_id_list = sorted(list(set(
         itertools.chain.from_iterable([re.findall('id_[0-9][0-9]', ext_id) for ext_id in files_path])
     )))
     return machine_id_list
+
+
+def get_filename_list(dir_path, pattern='*', ext='*'):
+    """
+    find all extention files under directory
+    :param dir_path: directory path
+    :param ext: extention name, like wav, png...
+    :param pattern: filename pattern for searching
+    :return: files path list
+    """
+    filename_list = []
+    for root, _, _ in os.walk(dir_path):
+        file_path_pattern = os.path.join(root, f'{pattern}.{ext}')
+        files = sorted(glob.glob(file_path_pattern))
+        filename_list += files
+    return filename_list
 
 
 # def file_to_wav_vector(file_name,
@@ -152,11 +166,11 @@ def create_test_file_list(target_dir,
                           prefix_normal='normal',
                           prefix_anomaly='anomaly',
                           ext='wav'):
-    normal_files_path = f'{target_dir}/{dir_name}/{prefix_normal}_{id_name}*.{ext}'
+    normal_files_path = f'{target_dir}/{prefix_normal}_{id_name}*.{ext}'
     normal_files = sorted(glob.glob(normal_files_path))
     normal_labels = np.zeros(len(normal_files))
 
-    anomaly_files_path = f'{target_dir}/{dir_name}/{prefix_anomaly}_{id_name}*.{ext}'
+    anomaly_files_path = f'{target_dir}/{prefix_anomaly}_{id_name}*.{ext}'
     anomaly_files = sorted(glob.glob(anomaly_files_path))
     anomaly_labels = np.ones(len(anomaly_files))
 
@@ -168,7 +182,7 @@ def create_test_file_list(target_dir,
 def create_train_file_list(target_dir,
                            id_name,
                            ext='wav'):
-    files_path = f'{target_dir}/train/normal_{id_name}*.{ext}'
+    files_path = f'{target_dir}/normal_{id_name}*.{ext}'
     files = sorted(glob.glob(files_path))
     return files
 
@@ -199,9 +213,8 @@ def file_to_log_mel_spectrogram(file_name,
 
 def create_eval_file_list(target_dir,
                           id_name,
-                          dir_name='test',
                           ext='wav'):
-    files_path = f'{target_dir}/{dir_name}/{id_name}*.{ext}'
+    files_path = f'{target_dir}/{id_name}*.{ext}'
     files = sorted(glob.glob(files_path))
     return files
 

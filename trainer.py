@@ -51,7 +51,7 @@ class ASDTrainer(object):
         self.csv_lines = []
 
     def train(self, train_loader, contrain=False):
-        # self.eval()
+        # self.test()
         n_iter = 0
         # create model dir for saving
         opt = 'finetune' if self.args.pretrain else 'stgram-mfn'
@@ -66,11 +66,11 @@ class ASDTrainer(object):
         for epoch in range(self.args.epochs):
             pbar = tqdm(train_loader, total=len(train_loader), ncols=100)
             for waveform, melspec, labels in pbar:
-                waveform = waveform.float().unsqueeze(1).to(self.args.device)
+                waveform = waveform.float().to(self.args.device)
                 melspec = melspec.float().to(self.args.device)
                 labels = labels.long().reshape(-1, 1).to(self.args.device)
                 self.classifier.train()
-                predict_ids, hs, zs = self.classifier(waveform, melspec, labels)
+                predict_ids, hs, zs = self.classifier(waveform, melspec, labels.reshape(-1))
                 loss_clf = self.criterion(predict_ids, labels.reshape(-1))
                 loss_con = self.supcon_criterion(zs, labels) if contrain else torch.tensor(0).to(loss_clf.device)
                 loss = loss_clf + self.args.lamda * loss_con
@@ -148,7 +148,6 @@ class ASDTrainer(object):
         """
         csv_lines = []
         sum_auc, sum_pauc, num = 0, 0, 0
-        dirs = utils.select_dirs(self.data_dir, data_type='')
         result_dir = os.path.join(self.args.result_dir, self.args.version)
         if gmm_n:
             result_dir = os.path.join(self.args.result_dir, self.args.version, f'GMM-{gmm_n}')
@@ -156,17 +155,15 @@ class ASDTrainer(object):
         self.classifier.eval()
         classifier = self.classifier.module if self.args.dp else self.classifier
         print('\n' + '=' * 20)
-        for index, target_dir in enumerate(sorted(dirs)):
+        for index, target_dir in enumerate(sorted(self.args.valid_dirs)):
             time.sleep(1)
             machine_type = os.path.split(target_dir)[1]
-            if machine_type not in self.args.process_machines:
-                continue
             # result csv
             csv_lines.append([machine_type])
             csv_lines.append(['id', 'AUC', 'pAUC'])
             performance = []
             # get machine list
-            machine_id_list = get_machine_id_list(target_dir, dir_name='test')
+            machine_id_list = get_machine_id_list(target_dir)
             for id_str in machine_id_list:
                 test_files, y_true = create_test_file_list(target_dir, id_str, dir_name='test')
                 csv_path = os.path.join(result_dir, f'anomaly_score_{machine_type}_{id_str}.csv')
@@ -216,9 +213,7 @@ class ASDTrainer(object):
         return avg_auc, avg_pauc
 
     def evaluator(self, save=True, gmm_n=False):
-        eval_data_dir = '../../data/eval_dataset'
-        dirs = utils.select_dirs(eval_data_dir, data_type='')
-        train_dirs = sorted(utils.select_dirs(self.data_dir, data_type=''))
+        dirs = utils.select_dirs(self.data_dir, data_type='eval_dataset')
         # result_dir = os.path.join(self.args.result_dir, self.args.version)
         result_dir = os.path.join('./dcase2020_task2_evaluator-master/teams', self.args.version)
         if gmm_n:
@@ -228,21 +223,19 @@ class ASDTrainer(object):
         self.classifier.eval()
         classifier = self.classifier.module if self.args.dp else self.classifier
         print('\n' + '=' * 20)
-        for index, target_dir in enumerate(sorted(dirs)):
+        for index, target_dir in enumerate(sorted(self.args.test_dirs)):
             time.sleep(1)
             machine_type = os.path.split(target_dir)[1]
-            if machine_type not in self.args.process_machines:
-                continue
             # get machine list
-            machine_id_list = get_machine_id_list(target_dir, dir_name='test')
+            machine_id_list = get_machine_id_list(target_dir)
             for id_str in machine_id_list:
-                test_files = utils.create_eval_file_list(target_dir, id_str, dir_name='test')
+                test_files = utils.create_eval_file_list(target_dir, id_str)
                 csv_path = os.path.join(result_dir, f'anomaly_score_{machine_type}_{id_str}.csv')
                 anomaly_score_list = []
                 y_pred = [0. for _ in test_files]
 
                 if gmm_n:
-                    train_files = utils.create_train_file_list(train_dirs[index], id_str)
+                    train_files = utils.create_train_file_list(target_dir, id_str)
                     features = self.get_ID_latent_features(train_files)
                     label = utils.get_label(train_files[0], self.id_factor)
                     means_init = classifier.arcface.weight[label * gmm_n: (label + 1) * gmm_n, :].detach().cpu().numpy() \
@@ -297,8 +290,8 @@ class ASDTrainer(object):
         x_mel = self.wav2mel(x)
         # x_mel = utils.normalize(x_mel, mean=self.args.mean, std=self.args.std)
         label = torch.from_numpy(np.array(label)).long().to(self.args.device)
-        x = x.unsqueeze(0).unsqueeze(0).float().to(self.args.device)
-        x_mel = x_mel.unsqueeze(0).unsqueeze(0).float().to(self.args.device)
+        x = x.unsqueeze(0).float().to(self.args.device)
+        x_mel = x_mel.unsqueeze(0).float().to(self.args.device)
         return x, x_mel, label
 
 
@@ -337,9 +330,12 @@ class CLRTrainer(object):
         for epoch in range(self.args.con_epochs):
             pbar = tqdm(train_loader, total=len(train_loader), ncols=100)
             for waveform, melspec, labels in pbar:
-                waveform = waveform.float().unsqueeze(2).to(self.args.device)
-                melspec = melspec.float().to(self.args.device)
-                _, z = self.net(waveform, melspec)
+                b, n, l = waveform.shape
+                _, _, f, t = melspec.shape
+                waveform = waveform.float().reshape(b*n, l).to(self.args.device)
+                melspec = melspec.float().reshape(b*n, f, t).to(self.args.device)
+                labels = labels.long().squeeze().to(self.args.device)
+                _, z = self.net(waveform, melspec, labels)
                 loss = self.ntxent_criterion(z) if self.args.pretrain_loss == 'ntxent' else self.supcon_criterion(z, labels)
                 pbar.set_description(f'Epoch:{epoch}'
                                      f'\tLclf:{loss.item():.5f}\t')

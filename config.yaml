@@ -4,15 +4,35 @@ version: STgram-MFN-Contrastive-pretrain-NTXent
 model_dir: ./model_params
 result_dir: ./results
 result_file: result.csv
-data_dir: ../../data/dataset
+data_dir: ../../data
 pre_data_dir: ../../data/pre_data
-process_machines:
-  - pump
-  - slider
-  - fan
-  - valve
-  - ToyCar
-  - ToyConveyor
+train_dirs:
+  - ../../data/dataset/fan/train
+  - ../../data/dataset/pump/train
+  - ../../data/dataset/slider/train
+  - ../../data/dataset/ToyCar/train
+  - ../../data/dataset/ToyConveyor/train
+  - ../../data/dataset/valve/train
+  - ../../data/eval_dataset/fan/train
+  - ../../data/eval_dataset/pump/train
+  - ../../data/eval_dataset/slider/train
+  - ../../data/eval_dataset/ToyCar/train
+  - ../../data/eval_dataset/ToyConveyor/train
+  - ../../data/eval_dataset/valve/train
+valid_dirs:
+  - ../../data/dataset/fan/test
+  - ../../data/dataset/pump/test
+  - ../../data/dataset/slider/test
+  - ../../data/dataset/ToyCar/test
+  - ../../data/dataset/ToyConveyor/test
+  - ../../data/dataset/valve/test
+test_dirs:
+  - ../../data/eval_dataset/fan/test
+  - ../../data/eval_dataset/pump/test
+  - ../../data/eval_dataset/slider/test
+  - ../../data/eval_dataset/ToyCar/test
+  - ../../data/eval_dataset/ToyConveyor/test
+  - ../../data/eval_dataset/valve/test
 
 # p_AUC
 max_fpr: 0.1
@@ -33,19 +53,20 @@ contrain: False
 # pretrain
 pretrain_loss: "ntxent" # ntxent, supcon
 con_epochs: 101
-con_batch_size: 6
+con_batch_size: 8
 con_lr: 5e-4
 t: 0.1
 con_file: 313frames_train_path_list_ID_dict.db
 device_ids:
 #  - 0
 #  - 1
-#  - 3
 #  - 2
-#  - 6
-#  - 7
+#  - 3
   - 4
   - 5
+  - 6
+  - 7
+
 
 # fine-tune
 seed: 526
@@ -63,8 +84,8 @@ sub_center: 1
 ft_ids:
 #  - 0
 #  - 1
-#  - 3
 #  - 2
+#  - 3
   - 4
   - 5
 #  - 6
