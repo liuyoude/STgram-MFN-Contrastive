@@ -124,7 +124,7 @@ class ASDTrainer(object):
                         'clf_state_dict': self.classifier.state_dict(),
                         'optimizer': self.optimizer.state_dict(),
                     }, is_best=False,
-                        filename=os.path.join(self.args.model_dir, self.args.version, 'fine-tune', checkpoint_name))
+                        filename=os.path.join(self.args.model_dir, self.args.version, opt, checkpoint_name))
                 else:
                     no_better += 1
                 # early stop
@@ -138,7 +138,7 @@ class ASDTrainer(object):
                     'clf_state_dict': self.classifier.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
                 }, is_best=False,
-                    filename=os.path.join(self.args.model_dir, self.args.version, 'fine-tune', checkpoint_name))
+                    filename=os.path.join(self.args.model_dir, self.args.version, opt, checkpoint_name))
         print(f'Traing {self.machine_type} completed!\tBest Epoch: {e:4d}\tBest AUC: {a:3.3f}\tpAUC: {p:3.3f}')
 
     def test(self, save=False, gmm_n=False):
@@ -361,4 +361,4 @@ class CLRTrainer(object):
                     'projector': self.net.module.projector.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
                 }, is_best=False,
-                    filename=os.path.join(self.args.model_dir, self.args.version, 'pre-train', checkpoint_name))
+                    filename=os.path.join(self.args.model_dir, self.args.version, 'pretrain', checkpoint_name))
