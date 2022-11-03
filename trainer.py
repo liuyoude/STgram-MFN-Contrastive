@@ -121,7 +121,7 @@ class ASDTrainer(object):
                     checkpoint_name = 'checkpoint_best.pth.tar'
                     save_checkpoint({
                         'epoch': epoch,
-                        'clf_state_dict': self.classifier.state_dict(),
+                        'clf_state_dict': self.classifier.module.state_dict() if self.args.dp else self.classifier.state_dict(),
                         'optimizer': self.optimizer.state_dict(),
                     }, is_best=False,
                         filename=os.path.join(self.args.model_dir, self.args.version, opt, checkpoint_name))
@@ -135,7 +135,7 @@ class ASDTrainer(object):
                 checkpoint_name = 'checkpoint_{:04d}.pth.tar'.format(epoch)
                 save_checkpoint({
                     'epoch': epoch,
-                    'clf_state_dict': self.classifier.state_dict(),
+                    'clf_state_dict': self.classifier.module.state_dict() if self.args.dp else self.classifier.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
                 }, is_best=False,
                     filename=os.path.join(self.args.model_dir, self.args.version, opt, checkpoint_name))
@@ -357,8 +357,8 @@ class CLRTrainer(object):
                 checkpoint_name = 'checkpoint_{:04d}.pth.tar'.format(epoch)
                 save_checkpoint({
                     'epoch': epoch,
-                    'encoder': self.net.module.encoder.state_dict(),
-                    'projector': self.net.module.projector.state_dict(),
+                    'encoder': self.net.module.encoder.state_dict() if self.args.dp else self.net.encoder.state_dict(),
+                    'projector': self.net.module.projector.state_dict() if self.args.dp else self.net.projector.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
                 }, is_best=False,
                     filename=os.path.join(self.args.model_dir, self.args.version, 'pretrain', checkpoint_name))
