@@ -330,13 +330,16 @@ class CLRTrainer(object):
         for epoch in range(self.args.con_epochs):
             pbar = tqdm(train_loader, total=len(train_loader), ncols=100)
             for waveform, melspec, labels in pbar:
-                b, n, l = waveform.shape
-                _, _, f, t = melspec.shape
-                waveform = waveform.float().reshape(b*n, l).to(self.args.device)
-                melspec = melspec.float().reshape(b*n, f, t).to(self.args.device)
+                if self.args.pretrain_loss == 'ntxent':
+                    b, n, l = waveform.shape
+                    _, _, f, t = melspec.shape
+                    waveform = waveform.float().reshape(b*n, l)
+                    melspec = melspec.float().reshape(b*n, f, t)
+                waveform = waveform.float().to(self.args.device)
+                melspec = melspec.float().to(self.args.device)
                 labels = labels.long().squeeze().to(self.args.device)
                 _, z = self.net(waveform, melspec, labels)
-                loss = self.ntxent_criterion(z) if self.args.pretrain_loss == 'ntxent' else self.supcon_criterion(z, labels)
+                loss = self.ntxent_criterion(z) if self.args.pretrain_loss == 'ntxent' else self.supcon_criterion(z, labels.reshape(-1, 1))
                 pbar.set_description(f'Epoch:{epoch}'
                                      f'\tLclf:{loss.item():.5f}\t')
                 self.optimizer.zero_grad()
