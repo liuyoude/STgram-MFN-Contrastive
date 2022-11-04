@@ -49,7 +49,9 @@ def pretrain(args):
         num_workers=args.workers, pin_memory=True, drop_last=True)
     optimizer = torch.optim.Adam(simclr_net.parameters(), lr=float(args.con_lr))
     with torch.cuda.device(args.gpu_index):
-        simclr_net = torch.nn.DataParallel(simclr_net, device_ids=args.device_ids)
+        args.dp = True if len(args.device_ids) > 1 else False
+        if len(args.device_ids) > 1:
+            simclr_net = torch.nn.DataParallel(simclr_net, device_ids=args.device_ids)
         trainer = CLRTrainer(data_dir=args.data_dir,
                              id_fctor=args.ID_factor,
                              net=simclr_net,

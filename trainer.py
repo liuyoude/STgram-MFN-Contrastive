@@ -353,7 +353,6 @@ class CLRTrainer(object):
                                          title='Contrastive Loss',
                                          legend=['loss']
                                      ))
-
                 n_iter += 1
 
             if epoch >= 80 and epoch % 10 == 0:
