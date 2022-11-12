@@ -46,7 +46,7 @@ class ASDTrainer(object):
         self.writer = Visdom(env=self.args.version, log_to_filename=visdom_path)
         self.criterion = torch.nn.CrossEntropyLoss().to(self.args.device)
         self.supcon_criterion = SupconLoss(temperature=self.args.t,
-                                           m=self.args.supcon_margin)
+                                           m=self.args.supcon_margin).to(self.args.device)
         self.wav2mel = ViewGenerator(sr=self.args.sr)
         self.csv_lines = []
 
@@ -155,9 +155,9 @@ class ASDTrainer(object):
         self.classifier.eval()
         classifier = self.classifier.module if self.args.dp else self.classifier
         print('\n' + '=' * 20)
-        for index, target_dir in enumerate(sorted(self.args.valid_dirs)):
+        for index, (target_dir, train_dir) in enumerate(zip(sorted(self.args.valid_dirs), sorted(self.args.train_dirs[:6]))):
             time.sleep(1)
-            machine_type = os.path.split(target_dir)[1]
+            machine_type = target_dir.split('/')[-2]
             # result csv
             csv_lines.append([machine_type])
             csv_lines.append(['id', 'AUC', 'pAUC'])
@@ -170,7 +170,7 @@ class ASDTrainer(object):
                 anomaly_score_list = []
                 y_pred = [0. for _ in test_files]
                 if gmm_n:
-                    train_files = utils.create_train_file_list(target_dir, id_str)
+                    train_files = utils.create_train_file_list(train_dir, id_str)
                     features = self.get_ID_latent_features(train_files)
                     label = utils.get_label(train_files[0], self.id_factor)
                     means_init = classifier.arcface.weight[label * gmm_n: (label + 1) * gmm_n, :].detach().cpu().numpy() \
@@ -223,9 +223,9 @@ class ASDTrainer(object):
         self.classifier.eval()
         classifier = self.classifier.module if self.args.dp else self.classifier
         print('\n' + '=' * 20)
-        for index, target_dir in enumerate(sorted(self.args.test_dirs)):
+        for index, (target_dir, train_dir) in enumerate(zip(sorted(self.args.test_dirs), sorted(self.args.train_dirs[6:]))):
             time.sleep(1)
-            machine_type = os.path.split(target_dir)[1]
+            machine_type = target_dir.split('/')[-2]
             # get machine list
             machine_id_list = get_machine_id_list(target_dir)
             for id_str in machine_id_list:
@@ -235,7 +235,7 @@ class ASDTrainer(object):
                 y_pred = [0. for _ in test_files]
 
                 if gmm_n:
-                    train_files = utils.create_train_file_list(target_dir, id_str)
+                    train_files = utils.create_train_file_list(train_dir, id_str)
                     features = self.get_ID_latent_features(train_files)
                     label = utils.get_label(train_files[0], self.id_factor)
                     means_init = classifier.arcface.weight[label * gmm_n: (label + 1) * gmm_n, :].detach().cpu().numpy() \
@@ -264,7 +264,7 @@ class ASDTrainer(object):
         for file_idx, file_path in pbar:
             x_wav, x_mel, label = self.transform(file_path)
             with torch.no_grad():
-                _, feature, _ = classifier(x_wav, x_mel)
+                _, feature, _ = classifier(x_wav, x_mel, label)
             if file_idx == 0:
                 features = feature.cpu()
             else:
@@ -315,9 +315,9 @@ class CLRTrainer(object):
         self.ntxent_criterion = NT_Xent(batch_size=self.args.con_batch_size,
                                         temperature=self.args.t,
                                         num_class=self.args.num_classes,
-                                        m=self.args.ntxent_margin)
+                                        m=self.args.ntxent_margin).to(self.args.device)
         self.supcon_criterion = SupconLoss(temperature=self.args.t,
-                                           m=self.args.supcon_margin)
+                                           m=self.args.supcon_margin).to(self.args.device)
         self.csv_lines = []
 
     def train(self, train_loader):
@@ -353,6 +353,7 @@ class CLRTrainer(object):
                                          title='Contrastive Loss',
                                          legend=['loss']
                                      ))
+
                 n_iter += 1
 
             if epoch >= 80 and epoch % 10 == 0:

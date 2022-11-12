@@ -51,9 +51,9 @@ num_classes: 41
 pretrain: True
 contrain: False
 # pretrain
-pretrain_loss: "ntxent" # ntxent, supcon
+pretrain_loss: "supcon" # ntxent, supcon
 con_epochs: 101
-con_batch_size: 8
+con_batch_size: 128
 con_lr: 5e-4
 t: 0.1
 con_file: 313frames_train_path_list_ID_dict.db
@@ -64,8 +64,8 @@ device_ids:
 #  - 3
   - 4
   - 5
-  - 6
-  - 7
+#  - 6
+#  - 7
 
 
 # fine-tune

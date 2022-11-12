@@ -110,6 +110,7 @@ def test(args):
                          pretrain=args.pretrain, m=args.m, s=args.s, sub=args.sub_center)
     gpu_id = args.ft_ids[0]
     if torch.cuda.is_available():
+        args.gpu_index = gpu_id
         args.device = torch.device(f'cuda:{gpu_id}')
         cudnn.deterministic = True
         cudnn.benchmark = True
@@ -121,16 +122,16 @@ def test(args):
         opt += '-contrain' if args.contrain else ''
         model_path = os.path.join(args.model_dir, args.version, opt,
                                   f'checkpoint_best.pth.tar')
-        if len(args.ft_ids) > 1:
-            args.dp = True
-            net = torch.nn.DataParallel(net, device_ids=args.ft_ids)
-        else:
-            args.dp = False
         # load best model for test
         ft_net.load_state_dict(torch.load(model_path)['clf_state_dict'])
+        if len(args.ft_ids) > 1:
+            args.dp = True
+            ft_net = torch.nn.DataParallel(ft_net, device_ids=args.ft_ids)
+        else:
+            args.dp = False
         trainer = ASDTrainer(data_dir=args.data_dir,
                              id_fctor=args.ID_factor,
-                             classifier=net,
+                             classifier=ft_net,
                              optimizer=None,
                              scheduler=None,
                              args=args)
@@ -153,7 +154,7 @@ def main():
     version += f'-ArcFace(m={args.m},s={args.s},sub={args.sub_center})' if args.use_arcface else 'CELoss'
     args.version = version
     print(args.version)
-    if args.pretrain: pretrain(args)
+    # if args.pretrain: pretrain(args)
     finetune(args, epoch=100)
     test(args)
 
