@@ -150,11 +150,11 @@ def main():
     version = "STgram-MFN"
     version += f'-Contrastive-pretrain-{args.pretrain_loss}(margin={margin},t={args.t},b={args.con_batch_size})-finetune' \
                if args.pretrain else ''
-    version += f'-contrain-SupConLoss(margin={args.supcon_margin})' if args.contrain else ''
+    version += f'-contrain-SupConLoss(margin={args.supcon_margin})-AdaptiveLamda' if args.contrain else ''
     version += f'-ArcFace(m={args.m},s={args.s},sub={args.sub_center})' if args.use_arcface else 'CELoss'
     args.version = version
     print(args.version)
-    # if args.pretrain: pretrain(args)
+    if args.pretrain: pretrain(args)
     finetune(args, epoch=100)
     test(args)
 

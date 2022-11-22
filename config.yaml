@@ -48,8 +48,8 @@ win_length: 1024
 power: 2.0
 
 num_classes: 41
-pretrain: True
-contrain: False
+pretrain: False
+contrain: True
 # pretrain
 pretrain_loss: "supcon" # ntxent, supcon
 con_epochs: 101

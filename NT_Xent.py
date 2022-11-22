@@ -107,7 +107,7 @@ class SupconLoss(nn.Module):
         pos_mask = mask.fill_diagonal_(0)
         neg_mask = ~ pos_mask
         if self.m:
-            cosine = sim
+            cosine = sim.clone()
             sine = torch.sqrt(1.0 - torch.pow(cosine, 2) + self.eps)
             phi = cosine * self.cos_m - sine * self.sin_m
             phi = torch.where((cosine - self.th) > 0, phi, cosine - self.mm)
