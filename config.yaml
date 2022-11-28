@@ -48,8 +48,8 @@ win_length: 1024
 power: 2.0
 
 num_classes: 41
-pretrain: False
-contrain: True
+pretrain: True
+contrain: False
 # pretrain
 pretrain_loss: "supcon" # ntxent, supcon
 con_epochs: 101
@@ -58,12 +58,12 @@ con_lr: 5e-4
 t: 0.1
 con_file: 313frames_train_path_list_ID_dict.db
 device_ids:
-#  - 0
-#  - 1
+  - 0
+  - 1
 #  - 2
 #  - 3
-  - 4
-  - 5
+#  - 4
+#  - 5
 #  - 6
 #  - 7
 
@@ -82,12 +82,12 @@ m: 1.0
 s: 30
 sub_center: 1
 ft_ids:
-#  - 0
-#  - 1
+  - 0
+  - 1
 #  - 2
 #  - 3
-  - 4
-  - 5
+#  - 4
+#  - 5
 #  - 6
 #  - 7
 

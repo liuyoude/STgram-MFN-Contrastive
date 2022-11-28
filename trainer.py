@@ -63,8 +63,8 @@ class ASDTrainer(object):
         p = 0
         e = 0
         no_better = 0
-        loss_clf_avg, loss_con_avg = 1, 1
-        sum_loss_avg = loss_clf_avg + loss_con_avg
+        # loss_clf_avg, loss_con_avg = 1, 1
+        # sum_loss_avg = loss_clf_avg + loss_con_avg
         for epoch in range(self.args.epochs):
             pbar = tqdm(train_loader, total=len(train_loader), ncols=100)
             loss_clf_avg_, loss_con_avg_ = 0, 0
@@ -76,11 +76,11 @@ class ASDTrainer(object):
                 predict_ids, hs, zs = self.classifier(waveform, melspec, labels.reshape(-1))
                 loss_clf = self.criterion(predict_ids, labels.reshape(-1))
                 loss_con = self.supcon_criterion(zs, labels) if contrain else torch.tensor(0).to(loss_clf.device)
-                loss_clf_avg_ += loss_clf.item()
-                loss_con_avg_ += loss_con.item()
-                loss_clf_w, loss_con_w = loss_con_avg / sum_loss_avg, loss_clf_avg / sum_loss_avg
-                # loss = loss_clf + self.args.lamda * loss_con
-                loss = loss_clf_w * loss_clf + loss_con_w * loss_con
+                # loss_clf_avg_ += loss_clf.item()
+                # loss_con_avg_ += loss_con.item()
+                # loss_clf_w, loss_con_w = loss_con_avg / sum_loss_avg, loss_clf_avg / sum_loss_avg
+                # loss = loss_clf_w * loss_clf + loss_con_w * loss_con
+                loss = loss_clf + self.args.lamda * loss_con
                 pbar.set_description(f'Epoch:{epoch}'
                                      f'Loss:{loss.item():.5f}\tLclf:{loss_clf.item():.5f}\tLcon:{loss_con.item():.5f}')
                 self.optimizer.zero_grad()
@@ -104,9 +104,9 @@ class ASDTrainer(object):
                                          ))
 
                 n_iter += 1
-            loss_clf_avg = loss_clf_avg_ / len(train_loader)
-            loss_con_avg = loss_con_avg_ / len(train_loader)
-            sum_loss_avg = loss_clf_avg + loss_con_avg
+            # loss_clf_avg = loss_clf_avg_ / len(train_loader)
+            # loss_con_avg = loss_con_avg_ / len(train_loader)
+            # sum_loss_avg = loss_clf_avg + loss_con_avg
             if self.scheduler is not None and epoch >= 20:
                 self.scheduler.step()
             print(f'Epoch:{epoch:03d}\t'
