@@ -102,16 +102,29 @@ def plot_embedding(data, id_labels, anomaly_labels, label_desc, title, save_path
                    alpha=0.8)
     else:
         for i in range(data.shape[0]):
-            plt.scatter(data[i, 0],
-                        data[i, 1],
-                        # str(label[i]),
-                        color=plt.cm.rainbow(id_labels[i] / num_class),
-                        s=40,
-                        label=label_desc[id_labels[i]],
-                        marker=shapes[anomaly_labels[i]],
-                        alpha=0.8
-                        # fontdict={'weight': 'bold', 'size': 9},
-                     )
+            if shapes[anomaly_labels[i]] == 'o':
+                plt.scatter(data[i, 0],
+                            data[i, 1],
+                            # str(label[i]),
+                            facecolors=plt.cm.rainbow(id_labels[i] / num_class),
+                            edgecolors='black',
+                            s=40,
+                            label=label_desc[id_labels[i]],
+                            marker=shapes[anomaly_labels[i]],
+                            alpha=0.8,
+                            # fontdict={'weight': 'bold', 'size': 9},
+                         )
+            else:
+                plt.scatter(data[i, 0],
+                            data[i, 1],
+                            # str(label[i]),
+                            color=plt.cm.rainbow(id_labels[i] / num_class),
+                            s=40,
+                            label=label_desc[id_labels[i]],
+                            marker=shapes[anomaly_labels[i]],
+                            alpha=0.8,
+                            # fontdict={'weight': 'bold', 'size': 9},
+                            )
 
     i_list = list(range(num_class))
     patches = [mpatches.Patch(color=plt.cm.rainbow(i / num_class), label=f'{label_desc[i]}') for i in i_list]
@@ -129,7 +142,7 @@ if __name__ == '__main__':
     version = 'ID_Contrastive(Supcon)_STgram_MFN(pos_margin=False,t=0.1,lr=0.0005)_b=246_seed=526_ArcFace(m=1.0,s=30,sub=1)_300epochs_constrive=100epochs'
     machine_type = 'fan'
     view = '2D'
-    save_path = os.path.join('./result', version, f't-SNE_{view}_{machine_type}_small.png')
+    save_path = os.path.join('./result', version, f't-SNE_{view}_{machine_type}_small.svg')
 
     data, id_labels, anomaly_labels, label_desc = get_data(version, machine_type, epoch='best')
     print(data.shape, len(id_labels), len(anomaly_labels))
